@@ -1,58 +1,145 @@
-#include <Servo.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-Servo myServo; // Maak een Servo object aan
-int yAxisPin = A0; // Joystick Y-as pin
-int xAxisPin = A1; // Joystick X-as pin
-int buttonPin = 2; // Joystick knop pin
-int xAxisValue; // Variabele voor de X-as waarde van de joystick
-int yAxisValue; // Variabele voor de Y-as waarde van de joystick
-int servoControlPin = 11; // Servo motor pin
-int servoPosition = 0; // Initiële positie van de servo
+// Installeer de LCD op I2C-adres 0x27 en gebruik 16 kolommen en 2 rijen
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Pindefinities voor knoppen
+const int buttonPin1 = 2; // Pin voor knop 1
+const int buttonPin2 = 3; // Pin voor knop 2
+
+// Variabelen voor tijdsregistratie
+unsigned long startTime;
+bool running = false;
+bool buttonPressed1 = false;
+bool buttonPressed2 = false;
+unsigned long buttonPressStartTime1 = 0;
+unsigned long buttonPressStartTime2 = 0;
+bool resetRequested = false;
+unsigned long lastReleaseTime = 0;
+const unsigned long debounceDelay = 50; // debounce delay in milliseconds
+
+// Hartjes symbool
+byte heart[8] = {
+  0b00000,
+  0b01010,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b01110,
+  0b00100,
+  0b00000
+};
 
 void setup() {
-  Serial.begin(9600); // Start seriële communicatie op 9600 baud
-  myServo.attach(servoControlPin); // Koppel de servo aan de opgegeven pin
-  myServo.write(servoPosition); // Zet servo op de beginpositie
-  pinMode(xAxisPin, INPUT); // Stel de X-as pin in als input
-  pinMode(yAxisPin, INPUT); // Stel de Y-as pin in als input
-  pinMode(buttonPin, INPUT_PULLUP); // Stel de knop pin in als input met interne pull-up weerstand
+  // Initialiseer de LCD
+  lcd.init();
+  lcd.backlight();
+
+  // Maak het hartje karakter
+  lcd.createChar(0, heart);
+
+  // Initialiseer de knoppen als ingangen
+  pinMode(buttonPin1, INPUT_PULLUP); // Gebruik interne pull-up weerstand
+  pinMode(buttonPin2, INPUT_PULLUP); // Gebruik interne pull-up weerstand
+
+  // Welkomstbericht op de LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Bergen op Zoom ");
+  lcd.write(byte(0)); // Schrijf het hartje
 }
 
 void loop() {
-  controlServo(); // Roep de functie aan om de servo te besturen
+  // Controleer knop 1
+  if (digitalRead(buttonPin1) == LOW) { // Knoppen zijn actief laag
+    if (!buttonPressed1 && (millis() - buttonPressStartTime1 >= debounceDelay)) {
+      buttonPressed1 = true;
+      buttonPressStartTime1 = millis();
+    }
+  } else {
+    if (buttonPressed1) {
+      if (!running) {
+        running = true;
+        startTime = millis(); // Start de timer
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print(getFormattedTime());
+        lcd.setCursor(0, 1);
+        lcd.print("Lap: ");
+      } else {
+        if (millis() - buttonPressStartTime1 >= 2000) { // Als knop 2 seconden lang is ingedrukt
+          lcd.setCursor(0, 1);
+          lcd.print("Lap: ");
+          lcd.print(getFormattedTime());
+          delay(500); // Voeg een kleine vertraging toe om meerdere laps te voorkomen
+        }
+      }
+      buttonPressed1 = false;
+    }
+  }
 
-  // Controleer of de knop is ingedrukt
-  if (digitalRead(buttonPin) == LOW) {
-    buttonPressed(); // Roep de functie aan bij knop indrukken
+  // Controleer knop 2
+  if (digitalRead(buttonPin2) == LOW) { // Knoppen zijn actief laag
+    if (!buttonPressed2 && (millis() - buttonPressStartTime2 >= debounceDelay)) {
+      buttonPressed2 = true;
+      buttonPressStartTime2 = millis();
+    }
+  } else {
+    if (buttonPressed2) {
+      // Toggle de timer status tussen pauze en hervatten
+      running = !running;
+      buttonPressed2 = false;
+    }
+  }
+
+  // Controleer als beide knoppen zijn losgelaten
+  if (!buttonPressed1 && !buttonPressed2) {
+    if (millis() - lastReleaseTime >= debounceDelay) {
+      resetRequested = true;
+    }
+  } else {
+    lastReleaseTime = millis();
+  }
+
+  // Als reset is aangevraagd, reset de timer en lap
+  if (resetRequested) {
+    resetTimerAndLap();
+    resetRequested = false;
+  }
+
+  // Controleer of de stopwatch aan het lopen is
+  if (running) {
+    // Toon de tijd op de LCD
+    lcd.setCursor(0, 0);
+    lcd.print(getFormattedTime());
   }
 }
 
-void controlServo() {
-  xAxisValue = analogRead(xAxisPin); // Lees de waarde van de X-as van de joystick
-  yAxisValue = analogRead(yAxisPin); // Lees de waarde van de Y-as van de joystick
+// Functie om de geformatteerde tijd op te halen (hh:mm:ss)
+String getFormattedTime() {
+  unsigned long currentTime = millis() - startTime;
+  int seconds = (currentTime / 1000) % 60;
+  int minutes = (currentTime / (1000 * 60)) % 60;
+  int hours = (currentTime / (1000 * 60 * 60)) % 24;
 
-  if (xAxisValue < 300) { // Controleer of de joystick naar links wordt bewogen
-    if (servoPosition > 0) { // Controleer of de servo niet onder de minimale hoek gaat
-      servoPosition -= 1; // Verlaag de servo hoek met 1 graad
-      myServo.write(servoPosition); // Beweeg de servo naar de nieuwe hoek
-      delay(10); // Korte vertraging voor stabiliteit
-    }
-  } else if (xAxisValue > 700) { // Controleer of de joystick naar rechts wordt bewogen
-    if (servoPosition < 120) { // Controleer of de servo niet boven de maximale hoek gaat
-      servoPosition += 1; // Verhoog de servo hoek met 1 graad
-      myServo.write(servoPosition); // Beweeg de servo naar de nieuwe hoek
-      delay(10); // Korte vertraging voor stabiliteit
-    }
-  }
+  // Formatteer de tijd als een string (hh:mm:ss)
+  String formattedTime = "";
+  if (hours < 10) formattedTime += "0";
+  formattedTime += String(hours) + ":";
+  if (minutes < 10) formattedTime += "0";
+  formattedTime += String(minutes) + ":";
+  if (seconds < 10) formattedTime += "0";
+  formattedTime += String(seconds);
+
+  return formattedTime;
 }
 
-void buttonPressed() {
-  // Draai de servo van 0 naar 120 graden en weer terug
-  for (int angle = 0; angle <= 120; angle += 2) {
-    myServo.write(angle); // Stuur de servo naar de huidige hoek
-    delay(15); // Voeg een kleine vertraging toe voor stabiliteit
-  }
-  delay(500); // Wacht 0.5 seconden voordat de servo terugkeert naar de beginpositie
-  myServo.write(0); // Beweeg de servo terug naar 0 graden
-  delay(15); // Voeg een korte vertraging toe voor stabiliteit
+// Functie om de timer en lap te resetten
+void resetTimerAndLap() {
+  startTime = 0;
+  running = false;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Bergen op Zoom ");
+  lcd.write(byte(0)); // Schrijf het hartje
 }

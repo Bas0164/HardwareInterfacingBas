@@ -1,26 +1,31 @@
-const int potPin = A0; // Aansluiting van de pot meter
-const int ledPins[] = {2, 3, 4, 5, 6, 7, 8}; // Alle lampjes.
+// Definieer de pinnen
+const int ledPins[] = {2, 3, 4, 5, 6, 7};
+const int numLeds = 6;
+const int potPin = A0;
+
+// Variabele om de potmeterwaarde bij te houden
+int potValue = 0;
 
 void setup() {
-  // Hier staat dat de lampjes aan of uit kunnen.
-  for (int i = 0; i < 7; i++) {
+  // Stel de LED-pinnen in als output
+  for (int i = 0; i < numLeds; i++) {
     pinMode(ledPins[i], OUTPUT);
   }
 }
 
 void loop() {
-  int potValue = analogRead(potPin); // Kijk hoe ver de potmeter is gedraaid.
-  
-  int numLeds = map(potValue, 0, 1023, 0, 7); // Bereken hoeveel lampjes we moeten aanzetten.
-  
-  // Loop om de lampjes aan- of uitzetten, afhankelijk van het aantal.
-  for (int i = 0; i < 7; i++) {
-    if (i < numLeds) {
-      digitalWrite(ledPins[i], HIGH); // Led aan
+  // Lees de waarde van de potmeter
+  potValue = analogRead(potPin);
+
+  // Bereken het aantal LEDs dat uit moet zijn
+  int numLedsOff = map(potValue, 0, 1023, 0, numLeds + 1);
+
+  // Zet de LEDs aan of uit op basis van de potmeterwaarde
+  for (int i = 0; i < numLeds; i++) {
+    if (i < numLedsOff) {
+      digitalWrite(ledPins[i], LOW); // LED uit
     } else {
-      digitalWrite(ledPins[i], LOW); // Led uit 
+      digitalWrite(ledPins[i], HIGH); // LED aan
     }
   }
-  
-  delay(100); // Voeg een kleine vetraging toe
 }

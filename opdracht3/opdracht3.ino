@@ -1,22 +1,44 @@
-const int buttonPin = 5; // Pin waarop de knop is aangesloten
-const int ledPin = 11; // Pin waarop de LED is aangesloten
-bool isLightOn = false; // Variabele om de status van het lampje bij te houden
+// Definieer de pinnen
+const int ledPin1 = 8;
+const int ledPin2 = 10;
+const int buttonPin = 12;
+
+// Variabelen om de status bij te houden
+int buttonState = 0;
+int lastButtonState = 0;
+int counter = 0;
 
 void setup() {
-  pinMode(ledPin, OUTPUT); // Zet de LED pin als uitgang
-  pinMode(buttonPin, INPUT); // Zet de knop pin als ingang
+  // Stel de LED-pinnen in als output
+  pinMode(ledPin1, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+
+  // Stel de knop pin in als input met interne pull-up weerstand
+  pinMode(buttonPin, INPUT_PULLUP);
 }
 
 void loop() {
-  if (digitalRead(buttonPin) == HIGH) { // Als de knop wordt ingedrukt:
-    isLightOn = !isLightOn; // Wissel de status van het lampje
-    while (digitalRead(buttonPin) == HIGH) {} // Wacht tot de knop wordt losgelaten om meerdere activeringen te voorkomen
-    delay(50); // Voeg een kleine vertraging toe
+  // Lees de huidige staat van de knop
+  buttonState = digitalRead(buttonPin);
+
+  // Controleer of de knop is ingedrukt
+  if (buttonState == LOW && lastButtonState == HIGH) {
+    // Verhoog de teller
+    counter++;
+
+    // Update de LED's
+    if (counter % 2 == 0) {
+      digitalWrite(ledPin1, LOW);
+      digitalWrite(ledPin2, HIGH);
+    } else {
+      digitalWrite(ledPin1, HIGH);
+      digitalWrite(ledPin2, LOW);
+    }
+
+    // Wacht 50ms om debounce te voorkomen
+    delay(50);
   }
 
-  if (isLightOn) { // Als het lampje aan moet zijn:
-    digitalWrite(ledPin, HIGH); // Zet de LED aan
-  } else { // Anders..
-    digitalWrite(ledPin, LOW); // Zet de LED uit
-  }
+  // Update de laatste knopstatus
+  lastButtonState = buttonState;
 }
